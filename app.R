@@ -12,6 +12,8 @@
 ## GLOBAL ######################################################################
 ##
 
+# remotes::install_github("timelyportfolio/d3treeR")
+
 library(shiny)
 library(bslib)
 #library(crosstalk)
@@ -19,9 +21,13 @@ library(leaflet)
 library(sf)
 library(dplyr)
 library(readr)
+library(tidyr)
 library(purrr)
 library(stringr)
+library(lubridate)
 library(ggplot2)
+library(treemap)
+library(d3treeR)
 library(forcats)
 library(readxl)
 library(shinyjs)
