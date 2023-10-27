@@ -41,7 +41,13 @@ library(plotly)
 library(readxl)
 
 ## Load data
-#source("R/prepa-data.R", local = TRUE)
+source("R/data-preparation.R", local = TRUE)
+source("R/data-res-init.R", local = TRUE)
+
+## Prepa tables
+source("R/data-res-progress.R", local = TRUE)
+source("R/data-res-user.R", local = TRUE)
+source("R/data-res-QAQC.R", local = TRUE)
 
 ## Load Extra functions for leaflet setStyle() and setShapeStyle()
 # source("R/leaflet-setStyle-js.R", local = TRUE)
@@ -100,12 +106,12 @@ ui <- tagList(
       mod_overview_UI("tab_ov") ## See R/mod_overview_UI.R
       ),
     
-    # nav_panel(
-    #   title = "Progress",
-    #   value = "progress",
-    #   icon  = icon("graph"),
-    #   mod_portal_UI("tab_portal") ## See R/mod_portal_UI.R
-    # ),
+    nav_panel(
+      title = "Progress",
+      value = "progress",
+      icon  = icon("chart-line"),
+      mod_progress_UI("tab_prog") ## See R/mod_progress_UI.R
+    ),
 
     # nav_panel(
     #   title = i18n$t("Calculations"), 
@@ -145,6 +151,7 @@ server <- function(input, output, session) {
   
   ## Server modules ------------------------------------------------------------
   mod_overview_server("tab_ov", rv = rv)
+  mod_progress_server("tab_prog", rv = rv)
   
   ## OBSERVERS -----------------------------------------------------------------
   

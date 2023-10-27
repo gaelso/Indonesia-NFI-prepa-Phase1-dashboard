@@ -1,6 +1,18 @@
 
 
+## 
+## CHECK ONE PERSON
+##
+unique(ceoqaqc$email)
+
+plot_check <- ceoqaqc |> filter(email == "ganis.ratna@gmail.com") |> pull(plotid)
+ceoqaqc2 <- ceoqaqc |> filter(plotid %in% plot_check, lu_cat == "Forest")
+
+
+##
 ## Checks QAQC
+##
+
 disa_lucat <- ceoqaqc |>
   select(pl_island, plotid, lu_cat) |>
   distinct() |>
@@ -56,7 +68,18 @@ disa_lusub_stat <- disa_lusub |>
 disa_lusub_stat
 
 disa_lucat_id <- disa_lucat |> filter(disa == "disagree") |> pull(plotid) 
-disa_lusub_id <- disa_lusub |> pull(plotid) 
+disa_lusub_id <- disa_lusub |> filter(disa == "disagree") |>pull(plotid) 
+
+disa_lusub2 <- ceoqaqc |>
+  filter(lu_cat == "Forest") |>
+  select(pl_island, plotid, lu_sub) |>
+  distinct() |>
+  summarise(count = n(), .by = c(pl_island, plotid)) |>
+  arrange(pl_island, plotid) |>
+  mutate(disa = if_else(count == 1, "agree", "disagree")) |>
+  distinct(plotid, .keep_all = T)
+
+disa_lusub2_id <- disa_lusub2 |> filter(disa == "disagree") |>pull(plotid) 
 
 disa_lucat_where <- ceoqaqc |>
   filter(plotid %in% disa_lucat_id) |>
@@ -70,6 +93,24 @@ gr_disa_lucat_where <- disa_lucat_where |>
   summarise(count = n(), .by = c(obs1, obs2)) |>
   ggplot(aes(x = obs1, y = obs2, fill = count)) +
   geom_tile() +
-  scale_fill_viridis_c() + 
+  scale_fill_viridis_c(direction = -1) + 
   theme_bw()
 gr_disa_lucat_where
+
+
+disa_lusub_where <- ceoqaqc |>
+  filter(plotid %in% disa_lusub2_id) |>
+  select(plotid, pl_island, lu_sub) |>
+  arrange(pl_island, plotid) %>%
+  mutate(obs = paste0("obs", rep(1:2, nrow(.)/2))) |>
+  pivot_wider(values_from = lu_sub, names_from = obs)
+disa_lusub_where
+
+gr_disa_lusub_where <- disa_lusub_where |>
+  summarise(count = n(), .by = c(obs1, obs2)) |>
+  ggplot(aes(x = obs1, y = obs2, fill = count)) +
+  geom_tile() +
+  scale_fill_viridis_c(direction = -1) + 
+  theme_bw() +
+  guides(x = guide_axis(angle = 45))
+gr_disa_lusub_where

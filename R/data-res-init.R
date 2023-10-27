@@ -1,12 +1,26 @@
 
 
-ceo <- read_csv("data/ceo.csv") |>
-  mutate(
-    collection_time = with_tz(collection_time, tz = "Asia/Makassar"),
-  )
-ceoqaqc <- read_csv("data/ceo_QAQC.csv")
+ceo_init <- read_csv("data/ceo.csv", col_types = cols(.default = "c"))
+ceoqaqc  <- read_csv("data/ceo_QAQC.csv", show_col_types = F)
+sf_ceo   <- st_read("data/sf_ceo.gpkg", quiet = T)
 
-sf_ceo <- st_read("data/sf_ceo.gpkg")
+load("data-raw/sf_islands_simp.Rdata")
+sf_country <- sf_islands_simp |> data.table::rbindlist() |> st_as_sf()
+
+## Sort data types for ceo 
+ceo <- ceo_init |>
+  mutate(
+    plotid = as.numeric(plotid),
+    collection_time = as.POSIXct(collection_time, tz = "GMT"),
+    collection_time = with_tz(collection_time, tz = "Asia/Makassar"),
+    date     = date(collection_time),
+    year     = year(collection_time),
+    month    = month(collection_time),
+    day      = day(collection_time),
+    day_txt  = paste0(month, "-", day(collection_time)),
+    day_half = if_else(am(collection_time), paste0(month, "-", day, " AM"), paste0(month, "-", day, " PM")),
+    duration = abs(round(as.numeric(str_remove(analysis_duration, " secs")) / 60, 2))
+  )
 
 
 ## Palettes
@@ -40,3 +54,17 @@ target_phase2 <- tibble(
   target_ph2 = c(476, 148, 413, 219, 257, 486, 386)
 )
 target_phase2
+
+
+target_phase2v2 <- tibble(
+  pl_island = target_island$pl_island,
+  target_ph2 = c(119, 148, 413, 219, 257, 486, 386)
+)
+target_phase2v2
+
+
+tt <- sf_ceo |>
+  as_tibble() |>
+  filter(is.na(email), pl_island %in% c("Papua", "Sulawesi"))
+
+

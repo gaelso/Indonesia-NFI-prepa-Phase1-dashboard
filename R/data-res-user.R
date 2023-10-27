@@ -4,14 +4,14 @@
 ## CHECK USERS #################################################################
 ##
 
-usr_island <- ceo |>
-  select(island = pl_island, email) |>
-  distinct() |>
-  summarise(count = n(), .by = island) |>
-  left_join(usr_island_planned, by = "island") |>
-  mutate(
-    perc = paste0(round(count / planned * 100), "%")
-  )
+# usr_island <- ceo |>
+#   select(island = pl_island, email) |>
+#   distinct() |>
+#   summarise(count = n(), .by = island) |>
+#   left_join(usr_island_planned, by = "island") |>
+#   mutate(
+#     perc = paste0(round(count / planned * 100), "%")
+#   )
 #print(usr_island)
 
 
@@ -37,37 +37,37 @@ ceo |>
   theme_bw() +
   theme(legend.position = "none")
 
-# avg_duration <- ceo |>
-#   summarise(
-#     n_plot = n(),
-#     avg = mean(duration),
-#     std = sd(duration),
-#     min = min(duration),
-#     max = max(duration),
-#     .by = c(day_half, pl_island)
-#   ) |>
-#   mutate(
-#     ci      = std / sqrt(n_plot) * round(qt(0.975, n_plot-1), 2),
-#     ci_perc = round(ci / avg * 100, 0)
-#   ) |>
-#   arrange(day_half)
-# print(avg_duration)
+avg_duration <- ceo |>
+  summarise(
+    n_plot = n(),
+    avg = mean(duration),
+    std = sd(duration),
+    min = min(duration),
+    max = max(duration),
+    .by = c(day_half, pl_island)
+  ) |>
+  mutate(
+    ci      = std / sqrt(n_plot) * round(qt(0.975, n_plot-1), 2),
+    ci_perc = round(ci / avg * 100, 0)
+  ) |>
+  arrange(day_half)
+print(avg_duration)
 
-# gr_avg_duration <- avg_duration |>
-#   ggplot(aes(x = day_half, y = avg)) +
-#   geom_line(aes(group = pl_island, color = pl_island)) +
-#   geom_point() +
-#   geom_errorbar(aes(ymin = avg - ci, ymax = avg + ci), width = 0.2) +
-#   theme_bw() +
-#   theme(legend.position = "none") +
-#   guides(x = guide_axis(n.dodge = 2)) +
-#   facet_wrap(~pl_island) +
-#   labs(
-#     title = "Average time for plot completion",
-#     x = "Session",
-#     y = "Completion time (min)"
-#   )
-# print(gr_avg_duration)
+gr_avg_duration <- avg_duration |>
+  ggplot(aes(x = day_half, y = avg)) +
+  geom_line(aes(group = pl_island, color = pl_island)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = avg - ci, ymax = avg + ci), width = 0.2) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  guides(x = guide_axis(n.dodge = 2)) +
+  facet_wrap(~pl_island) +
+  labs(
+    title = "Average time for plot completion",
+    x = "Session",
+    y = "Completion time (min)"
+  )
+#print(gr_avg_duration)
 
 # avg_user_duration <- ceo |>
 #   summarise(
@@ -106,17 +106,21 @@ ceo |>
 #   )
 # print(gr_user_duration)
 
-gr_user_behavior <- ceo |>
-  arrange(user_group) |>
-  filter(duration <= 20, date >= "2023-10-24") |>
-  ggplot(aes(x = collection_time, y = duration, group = pl_island, color = pl_island)) +
-  geom_point() +
-  geom_smooth(method = lm, se = FALSE) +
-  scale_color_viridis_d() +
-  theme_bw() +
-  theme(legend.position = "none") +
-  facet_wrap(~user_group, nrow = 5)
-#print(gr_user_behavior)
+# gr_user_behavior <- ceo |>
+#   arrange(user_group) |>
+#   filter(duration <= 20, date >= "2023-10-24") |>
+#   mutate(
+#     collection_hour = round_date(collection_time, "2 hours")
+#   ) |>
+#   ggplot(aes(y = duration)) +
+#   geom_boxplot(aes(x = as.factor(collection_hour), fill = pl_island)) +
+#   geom_smooth(aes(x = as.factor(collection_hour), color = pl_island, group = 1), method = lm, se = FALSE) +
+#   scale_color_viridis_d() +
+#   scale_fill_viridis_d() +
+#   theme_bw() +
+#   theme(legend.position = "none") +
+#   facet_wrap(~user_group, nrow = 5)
+# print(gr_user_behavior)
 
 
 avg_plot_user <- ceo |>
@@ -160,6 +164,7 @@ avg_plot <- avg_plot_user |>
 gr_avg_plot <- avg_plot |>
   #filter(day_half != "10-25 PM") |>
   ggplot(aes(x = day_half, y = avg)) +
+  geom_abline(intercept = 30, slope = 0, color = "grey80") +
   geom_line(aes(group = pl_island, color = pl_island)) +
   geom_point() +
   geom_errorbar(aes(ymin = avg - ci, ymax = avg + ci), width = 0.2) +
@@ -168,7 +173,7 @@ gr_avg_plot <- avg_plot |>
   guides(x = guide_axis(n.dodge = 2)) +
   facet_wrap(~pl_island) +
   labs(
-    title = "Average number of plot per session",
+    title = "Average number of plots per session and user",
     x = "Session",
     y = "Number of plots"
   )
@@ -184,48 +189,48 @@ print(gr_avg_plot)
 # new_names |> str_subset("sub")
 
 
-# basic treemap
-tm_lucat <- treemap(
-  dtf = cbind(ceo, value = 1),
-  index = c("lu_cat","lu_sub"),
-  vSize = "value",
-  type = "index",
-  palette = "Set2",
-  bg.labels=c("white"),
-  align.labels=list(
-    c("center", "center"),
-    c("right", "bottom")
-  )
-)
+# # basic treemap
+# tm_lucat <- treemap(
+#   dtf = cbind(ceo, value = 1),
+#   index = c("lu_cat","lu_sub"),
+#   vSize = "value",
+#   type = "index",
+#   palette = "Set2",
+#   bg.labels=c("white"),
+#   align.labels=list(
+#     c("center", "center"),
+#     c("right", "bottom")
+#   )
+# )
+# 
+# 
+# # make it interactive ("rootname" becomes the title of the plot):
+# d3tm_lucat <- d3tree2( tm_lucat ,  rootname = "General")
+# d3tm_lucat
 
 
-# make it interactive ("rootname" becomes the title of the plot):
-d3tm_lucat <- d3tree2( tm_lucat ,  rootname = "General")
-d3tm_lucat
-
-
-# Create Data
-data <- data.frame(
-  group=LETTERS[1:5],
-  value=c(13,7,9,21,2)
-)
-
-# Compute the position of labels
-data <- data %>%
-  arrange(desc(group)) %>%
-  mutate(prop = value / sum(data$value) *100) %>%
-  mutate(ypos = cumsum(prop)- 0.5*prop )
-
-# Basic piechart
-ggplot(data, aes(x="", y=prop, fill=group)) +
-  geom_bar(stat="identity", width=1, color="white") +
-  coord_polar("y", start=0) +
-  theme_void() +
-  theme(legend.position="none") +
-  geom_text(aes(y = ypos, label = group), color = "white", size=6)
-
-Prop <- c(3,7,9)
-pie(Prop , labels = c("Gr-A","Gr-B","Gr-C"), border="white", col=pal_luaccess)
+# # Create Data
+# data <- data.frame(
+#   group=LETTERS[1:5],
+#   value=c(13,7,9,21,2)
+# )
+# 
+# # Compute the position of labels
+# data <- data %>%
+#   arrange(desc(group)) %>%
+#   mutate(prop = value / sum(data$value) *100) %>%
+#   mutate(ypos = cumsum(prop)- 0.5*prop )
+# 
+# # Basic piechart
+# ggplot(data, aes(x="", y=prop, fill=group)) +
+#   geom_bar(stat="identity", width=1, color="white") +
+#   coord_polar("y", start=0) +
+#   theme_void() +
+#   theme(legend.position="none") +
+#   geom_text(aes(y = ypos, label = group), color = "white", size=6)
+# 
+# Prop <- c(3,7,9)
+# pie(Prop , labels = c("Gr-A","Gr-B","Gr-C"), border="white", col=pal_luaccess)
 
 
 
@@ -294,7 +299,7 @@ max(sf_ceo$collection_time, na.rm = T)
 
 # gr_lu_anim <- sf_ceo |>
 #   mutate(
-#     collection_hour = round_date(collection_time, "hours")
+#     collection_hour = round_date(collection_time, "0.25 hours")
 #   ) |>
 #   ggplot(aes(fill = lu_access)) +
 #   geom_sf(data = sf_country, fill = "grey95", color = NA) +
@@ -307,7 +312,9 @@ max(sf_ceo$collection_time, na.rm = T)
 #     fill = ""
 #     ) +
 #   transition_manual(collection_hour, cumulative = TRUE)
-#
-# animate(gr_lu_anim, end_pause = 10, width = 800, height = 600)
-# anim_save(filename = "progress-lu-access-1025pm.gif",  path = "data-raw")
+# 
+# animate(gr_lu_anim, end_pause = 30, width = 800, height = 600)
+# anim_save(filename = "progress-lu-access-1027am.gif",  path = "data-raw")
+
+
 
