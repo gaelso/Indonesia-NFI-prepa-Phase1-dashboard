@@ -70,3 +70,4 @@ tt <- sf_ceo |>
   filter(is.na(email), pl_island %in% c("Papua", "Sulawesi"))
 
 
+write_csv(ceo, "data/ceo.csv")

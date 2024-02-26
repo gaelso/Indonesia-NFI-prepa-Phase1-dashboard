@@ -60,3 +60,5 @@ sf_ceo2 |>
   scale_color_manual(values = c("darkgreen", "darkred", "grey80", "yellowgreen", "lightpink"))
 
 ceo2 <- sf_ceo2 |> as_tibble() |> select(-geometry)
+
+write_csv(ceo2, "data/ceo_withfriction.csv")

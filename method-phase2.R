@@ -66,6 +66,9 @@ walk(path_dat, function(x){
   sfc_corr <- round(n_access_forest / n_plot, 2)
   n_plot2 <- ceiling(n_plot * sfc_corr * sfc_adjust)
   
+  samprop <- n_plot / n_access_forest
+  ceiling(1/samprop)
+  
   ran_start_range <- 1:ceiling(n_pool / n_plot2)
   ran_start_range
   
