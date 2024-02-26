@@ -1,6 +1,8 @@
 
 data/
 data-raw/
+data-source/
+results/
 
 # History files
 .Rhistory

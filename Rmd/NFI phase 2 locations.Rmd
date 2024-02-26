@@ -1,0 +1,56 @@
+---
+title: "Creating NFI Phase 2 sample location with SFC"
+output:
+  word_document: default
+  html_document: default
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Context 
+
+This technical report covers the establishment of field sample locations for the Improved "National Forest Inventory Plan for Indonesia Forest". The main document proposes a two-phases systematic stratified design with target sampling sizes for seven strata of dryland forest and one strata of mangrove forest.
+
+Three annexes to the main report describe:
+1. Optimal sampling grids for the NFI phase 1 visual interpretation.
+1. Results of the NFI Phase 1 visual interpretation.
+1. Distribution of the NFI Phase 2 field sample location (this report).
+
+A separate annex is dedicated to Mangrove, Mangrove sampling is not addressed in this report.
+
+
+# Method
+
+Given a final dataset of NFI phase 1 visually interpreted samples, the general approach to selecting the NFI phase 2 samples was as follows:
+
+1. Determine the distance of each sample along a space filling curve (SFC), following Hilbert's distance and computed with Python dask-geopandas [library](https://dask-geopandas.readthedocs.io/en/stable/docs/reference/api/dask_geopandas.GeoSeries.hilbert_distance.html)).
+1. Select samples along the curve based on a sampling proportion, itself calculated with the number of plots in the pool (i.e. the NFI phase 1 plots), the number of target plots to sample (i.e. the number of target plot for the Phase 2) and adjustment factors to take into consideration: the proportion of accessible forest plots in the pool and the uncertainty around the identification of forest / non-forest in the Phase 1. 
+1. A random starting point is assigned then the selection is systematic following the space filling curve. 
+1. The adjustment factors are tailored manually to provide a number of forest plots slightly exceeding the target.
+1. All natural forest samples are kept, 70 samples are randomly selected among the accessible Trees Outside Forest samples.
+1. Separately, additional samples in primary forest are provided for an intensification study for forest types that cover an area too small to be effectively represented in a national level sampling design.
+
+
+1. 
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

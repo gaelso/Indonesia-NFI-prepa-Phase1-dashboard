@@ -11,7 +11,7 @@
    usr_info <- read_csv("data-raw/list of participants NFI-Phase1.csv")
    
    ## CEO raw data
-   ceosession <- "ceo-10-27-am"
+   ceosession <- "ceo-10-27-pm"
    ceopath    <- list.files(file.path("data-raw", ceosession), pattern = "csv", full.names = T)
    
    ## Uncomment to reduce analysis to the inital survey
@@ -22,6 +22,10 @@
    ceoraw
    
    names(ceoraw)
+   
+   ## Check missing IDs
+   write_csv(ceoraw, "data/ceoraw.csv")
+   
    
    sf_ceoid <- ceoraw |>
      select(plotid, lon, lat) |>
@@ -122,9 +126,14 @@
      #   duration = abs(round(as.numeric(str_remove(analysis_duration, " secs")) / 60, 2))
      # ) |>
      mutate(
-       lu_cat = land_use_2023_centroid,
-       lu_sub = paste0(forest_sub_categories, owl_sub_categories, ol_sub_categories, water_sub_categories),
-       lu_sub = str_remove_all(lu_sub, "NA")
+       lu_cat  = land_use_2023_centroid,
+       lu_sub  = paste0(forest_sub_categories, owl_sub_categories, ol_sub_categories, water_sub_categories),
+       lu_sub  = str_remove_all(lu_sub, "NA"),
+       lu_cat2  = case_when(
+         cropland_with_or_without_trees == "0.25 ha and 10% tree cover at least (TOF)"  ~ "TOF",
+         grassland_with_or_without_trees == "0.25 ha and 10% tree cover at least (TOF)" ~ "TOF",
+         TRUE ~ lu_cat
+       )
      ) |>
      mutate(
        plotid = as.numeric(plotid),
@@ -132,12 +141,26 @@
      ) |>
      mutate(
        lu_access = case_when(
-         lu_cat == "Forest" & access_by_road == "Yes"  ~ "Forest-access",
-         lu_cat == "Forest" & access_by_river == "Yes" ~ "Forest-access",
-         lu_cat == "Forest" & access_by_coast == "Yes" ~ "Forest-access",
-         lu_cat == "Forest" ~ "Forest-no access",
-         TRUE ~ "Non-forest"
+         lu_cat2 == "Forest" & access_by_road == "Yes"  ~ "Forest-access",
+         lu_cat2 == "Forest" & access_by_river == "Yes" ~ "Forest-access",
+         lu_cat2 == "Forest" & access_by_coast == "Yes" ~ "Forest-access",
+         lu_cat2 == "Forest" ~ "Forest-no access",
+         lu_cat2 == "TOF" & access_by_road == "Yes"  ~ "TOF-access",
+         lu_cat2 == "TOF" & access_by_river == "Yes" ~ "TOF-access",
+         lu_cat2 == "TOF" & access_by_coast == "Yes" ~ "TOF-access",
+         lu_cat2 == "TOF" ~ "TOF-no access",
+         TRUE ~ "Other non-forest"
+       ),
+       lu_access2 = case_when(
+         pl_island == "Papua" & lu_cat2 == "Forest" & access_by_road == "Yes"  ~ "Forest-access",
+         pl_island == "Papua" & lu_cat2 == "Forest" ~ "Forest-no access",
+         pl_island == "Papua" & lu_cat2 == "TOF" & access_by_road == "Yes"  ~ "TOF-access",
+         pl_island == "Papua" & lu_cat2 == "TOF" ~ "TOF-no access",
+         TRUE ~ lu_access
        )
+     )|>
+     mutate(
+       lu_change = changes_for_period_2017_2023
      )
    
    names(ceo)
@@ -208,6 +231,9 @@
          lu_cat == "Forest" ~ "Forest-no access",
          TRUE ~ "Non-forest"
        )
+     ) |>
+     mutate(
+       lu_change = changes_for_period_2017_2023
      )
    
    

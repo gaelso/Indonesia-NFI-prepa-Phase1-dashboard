@@ -102,6 +102,7 @@ gr_progress_access <- progress_access |>
   )
 print(gr_progress_access)
 
+table(ceo$pl_island, ceo$lu_access)
 
 progress_access2 <- ceo |>
   filter(lu_access == "Forest-access") |>

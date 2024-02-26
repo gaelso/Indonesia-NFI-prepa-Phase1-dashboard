@@ -20,6 +20,8 @@ library(bslib)
 #library(crosstalk)
 library(leaflet)
 library(sf)
+library(terra)
+library(tidyterra)
 library(dplyr)
 library(readr)
 library(tidyr)
@@ -46,7 +48,8 @@ source("R/data-res-init.R", local = TRUE)
 
 ## Prepa tables
 source("R/data-res-progress.R", local = TRUE)
-source("R/data-res-user.R", local = TRUE)
+## ERROR NEED TO BE FIXED IN PREPA SCRIPT ## 
+## source("R/data-res-user.R", local = TRUE)
 source("R/data-res-QAQC.R", local = TRUE)
 
 ## Load Extra functions for leaflet setStyle() and setShapeStyle()

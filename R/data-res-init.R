@@ -7,6 +7,8 @@ sf_ceo   <- st_read("data/sf_ceo.gpkg", quiet = T)
 load("data-raw/sf_islands_simp.Rdata")
 sf_country <- sf_islands_simp |> data.table::rbindlist() |> st_as_sf()
 
+anci <- read_csv("data-raw/sample_statistics-PabloMartin.csv")
+
 ## Sort data types for ceo 
 ceo <- ceo_init |>
   mutate(
