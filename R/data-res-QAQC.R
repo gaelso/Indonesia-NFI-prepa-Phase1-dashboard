@@ -122,6 +122,8 @@ disa_lucat_stat <- disa_lucat |>
   mutate(perc  = paste(round(disagree / total * 100), "%")
   )
 disa_lucat_stat
+
+write_csv(disa_lucat_stat, "data/disa_lucat_stat.csv")
 # 
 # disa_lusub <- ceoqaqc |>
 #   filter(plotid %in% plot_dup) |>

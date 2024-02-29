@@ -1,0 +1,240 @@
+---
+title: "Creating NFI Phase 2 sample location with SFC"
+output:
+  word_document: default
+  html_document: default
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(sf)
+library(tidyverse)
+
+```
+
+# Context 
+
+This technical report covers the establishment of field sample locations for the Improved "National Forest Inventory Plan for Indonesia Forest". The main document proposes a two-phases systematic stratified design with target sampling sizes for seven strata of dryland forest and one strata of mangrove forest.
+
+Three annexes to the main report describe:
+1. Optimal sampling grids for the NFI phase 1 visual interpretation.
+1. Results of the NFI Phase 1 visual interpretation.
+1. Distribution of the NFI Phase 2 field sample location (this report).
+
+A separate annex is dedicated to Mangrove, Mangrove sampling is not addressed in this report.
+
+
+
+# Method
+
+## General approach
+
+Given a final dataset of NFI phase 1 visually interpreted samples, the general approach to selecting the NFI phase 2 samples was as follows:
+
+1. Determine the distance of each sample along a space filling curve (SFC), following Hilbert's distance and computed with Python dask-geopandas [library](https://dask-geopandas.readthedocs.io/en/stable/docs/reference/api/dask_geopandas.GeoSeries.hilbert_distance.html)).
+1. Select samples along the curve based on a sampling proportion calculated with the number of plots in the pool (i.e. the NFI phase 1 plots that are accessible forest), the number of target plots to sample (i.e. the number of target plots for the Phase 2) and adjustment factors to take into consideration uncertainty around the identification of forest / non-forest in the Phase 1. 
+1. A random starting point is assigned then the selection is systematic following the space filling curve. 
+1. The adjustment factors are tailored manually to provide a number of forest plots slightly exceeding the target.
+1. All natural forest samples are kept, 70 samples are randomly selected among the accessible Trees Outside Forest samples.
+1. Separately, additional samples in primary forest are provided for an intensification study on forest types that cover an area too small to be effectively represented in a national level sampling design. These samples can be measured according to the NFI field manual and integrated in the NFI database management system. However they should be filtered out from the national level statistics calculation chains and separate calculation chains should be designed specifically for these samples.
+
+The sampling proportion is calculated as follows:
+
+$$sampling\_proportion = ceiling \left( \frac{n\_plot * (1 + U) * sfc\_adj}{n\_pool} \right)$$
+
+in R:
+
+```sampling_proportion = ceiling(n_plot * (1 + U) * sfc_adj / n_pool)```
+
+With $sfc\_adj$ a manually adjusted variable to reach the target number of samples in accessible forest and $U$ the uncertainty around forest/non-forest identification in the Phase 1.
+
+
+
+## Input Data
+
+```{r, include=FALSE}
+
+ceo <- read_csv("data/ceo_withfriction_hilbert.csv")
+sf_ceo <- ceo |> 
+   mutate(lon_copy = lon, lat_copy = lat) |>
+  st_as_sf(coords = c("lon_copy", "lat_copy"), crs = 4326)
+
+disa_lucat_stat <- read_csv("data/disa_lucat_stat.csv") 
+
+sf_dggrid <- st_read("data/sf_ddggrid.gpkg") |> st_join(sf_ceo)
+
+load("data-raw/sf_islands.Rdata")
+
+```
+
+The following datasets where used for the analysis:
+
+- CEO final dataset containing ```r nrow(ceo)``` unique values from the visual interpretation phase. This data is stored as a CSV file, but it contains the plot locations (lat/long) and can easily be transformed to a geospatial dataset.
+
+```{r}
+
+ceo |> 
+  arrange(plotid) |>
+  select(plotid, user_code, collection_time, lon, lat, lu_cat) |>
+  slice_head(n = 10) |>
+  knitr::kable(caption = "Sample of the NFI phase 1 CEO data with user anonymized.")
+
+```
+
+- The results of the QAQC dataset with the percentage of disagreement between 2 observers on land use category (CSV file).
+
+```{r}
+
+knitr::kable(
+  disa_lucat_stat, 
+  caption = "Evaluation of agreement between observers on land use category in the NFI Phase 1 QAQC dataset."
+  )
+
+```
+
+- The Discrete Global Grid hexagons matching the CEO NFI Phase 1 plot locations. For mapping purposes, the spatial information is easier to display on surface accurate polygons rather than points, because point data tends not to scale well with image resolution.
+
+```{r, fig.cap="Plot accessibility based on Weiss and al, 2020 motorized travel time to healthcare in hours. The 3 hours color code represents 3 hours and more."}
+
+sf_dggrid |>
+  mutate(friction_health2 = if_else(friction_health / 60 > 3, 3, friction_health / 60)) |>
+  ggplot() +
+  geom_sf(aes(fill = friction_health2), color = NA) +
+  scale_fill_viridis_c(direction = -1) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  labs(fill = "")
+
+```
+
+- The raster data on motorized travel time to healthcare was also used to propose an alternative accessibility option to the CEO visual interpretation (See section on accessibility below). The values of this spatial layer were extracted at the location of the NFI Phase 1 samples.
+
+
+
+## Data analysis workflow
+
+The analysis workflow consisted in (1) setting rules for plot accessibility to determine the existing pool of accessible forest plots, then (2) running the plot selection based on manually tailored sampling proportion to reach the target number of plots. The plot selection process started with assigning a random starting point at the beginning of the space filling curve then selecting the following plots based on the sampling proportion. For example, with a sampling proportion of 0.1, one plot is selected every 10 plots.
+
+
+### Options to determine plot accessibility
+
+At the end of the NFI Phase 1 visual interpretation, the preliminary results showed that in Papua, and probably also in Kalimantan, the accessibility by river was too loosely defined. It resulted in many plots being assessed as accessible by river because a river was found within 5 km to plot centers but in reality these rivers might not be navigable or the travel time to plot center form the nearest harbor would be too long. Three options were therefore tested to address this issue:
+
+1. Access by road, river or sea based on the NFI Phase 1 visual interpretation, i.e. a road, river or sea is within 5 km of the plot center.
+  
+1. Restricted version where access by road only for Kalimantan and Papua. This more restrictive definition is due to many plot having a river nearby but the journey to reach the plots would be too long, or the river is not navigable. 
+  
+1. Using the [Global Motorized Travel time to Healthcare](https://malariaatlas.org/) friction spatial data to define accessibility. This data is based on road infrastructure and healthcare facilities databases from Google map, Open Street Map and a number of other datasets (See [Weiss and al., 2020](https://doi.org/10.1038/s41591-020-1059-1)) to evaluate how far in minutes each pixel is from a healthcare facility. Note that this data show fewer accessible plots that  
+
+```{r, include=FALSE}
+
+ceo_access <- ceo |>
+  mutate(
+    lu_access1 = case_when(
+        lu_cat2 == "Forest" & access_by_road == "Yes"  ~ "Forest-access",
+        lu_cat2 == "Forest" & access_by_river == "Yes" ~ "Forest-access",
+        lu_cat2 == "Forest" & access_by_coast == "Yes" ~ "Forest-access",
+        lu_cat2 == "Forest" ~ "Forest-no access",
+        lu_cat2 == "TOF" & access_by_road == "Yes"  ~ "TOF-access",
+        lu_cat2 == "TOF" & access_by_river == "Yes" ~ "TOF-access",
+        lu_cat2 == "TOF" & access_by_coast == "Yes" ~ "TOF-access",
+        lu_cat2 == "TOF" ~ "TOF-no access",
+        TRUE ~ "Other land"
+    ),
+    lu_access2 = case_when(
+      pl_island %in% c("Papua", "Kalimantan") & lu_cat2 == "Forest" & access_by_road == "Yes"  ~ "Forest-access",
+      pl_island %in% c("Papua", "Kalimantan") & lu_cat2 == "Forest" ~ "Forest-no access",
+      pl_island %in% c("Papua", "Kalimantan") & lu_cat2 == "TOF" & access_by_road == "Yes"  ~ "TOF-access",
+      pl_island %in% c("Papua", "Kalimantan") & lu_cat2 == "TOF" ~ "TOF-no access",
+      TRUE ~ lu_access
+    ),
+    lu_access3 = case_when(
+      lu_cat2 == "Forest" & friction_health <= 180  ~ "Forest-access",
+      lu_cat2 == "Forest" ~ "Forest-no access",
+      lu_cat2 == "TOF" & friction_health <= 180 ~ "TOF-access",
+      lu_cat2 == "TOF" ~ "TOF-no access",
+      TRUE ~ "Other land"
+    )
+  )
+
+```
+
+
+
+
+
+### Setting up space filling curve
+
+The space filling curve is a method to have a line go through all the plots, passing by each plot only one time. It has been used to get a systematic sampling without the limitations of traditional grids (hexagonal or square), mainly the potential biases if geographic patterns align with the grid directions and the grid spacing constraining the sample sizes. An example of using space filling curve for natural resources monitoring can be found in [Scott, 1993](https://www.fs.usda.gov/research/treesearch/13672).
+
+The Hilbert distance was computed using the dask-geopandas python library. It takes a spatial dataset of points and output the same data with an additional column ordering plots by their distance to the inital starting point on the space filling curve.
+
+```{r, fig.cap="Space filling curve in action ove the NFI Phase 1 samples in Kalimantan"}
+
+sf_ceo |>
+  filter(pl_island == "Kalimantan") |>
+  arrange(hilbert_dist) |>
+  ggplot() +
+    geom_sf(aes(color = hilbert_dist), size = 0.6) +
+    geom_path(aes(x = lon, y = lat, color = hilbert_dist)) +
+    scale_color_viridis_c() +
+    theme_void() +
+    theme(legend.position = "none")
+
+```
+
+
+
+### Running the space filling curve based sample selection
+
+The selection of plots along the curve were based on a small algorithm that checks if the location matches the sampling proportion. The algorithm runs for each iteration `i` from 1 to the total number of plots in the pool `n_pool`. if the value of `i` is past the starting point randomly allocated. !!!!!
+
+
+
+```{r, echo = TRUE, eval = FALSE}
+pool_seqnum <- sf_point$FRA_HEXID
+plot_seqnum <- vector(length = n_pool)
+sfc_cluster <- vector(length = n_pool) 
+  
+j <- start_point
+  for (i in 1:n_pool) {
+    
+    if (i >= start_point & ceiling(i * sampling_proportion) == j) {
+      plot_seqnum[i] <- pool_seqnum[i]
+      j <- j + 1
+    } else {
+      plot_seqnum[i] <- 0
+      sfc_cluster[i] <- j
+    }
+  }
+
+```
+
+
+
+
+
+
+
+## Results
+
+
+
+
+- Create a table of space filling curve input parameters for each strata
+
+```{r}
+
+sfc_factor <- tibble(
+  island_name  = c("BaliNusa", "Jawa", "Kalimantan", "Maluku", "Papua", "Sulawesi", "Sumatera"),
+  island_code  = c("BL", "JV", "KL", "ML", "PP", "SL", "SM"),
+  phase1_error = head(round(disa_lucat_stat$disagree / disa_lucat_stat$total, 2), -1),
+  n_plot       = c(119, 148, 413, 219, 257, 486, 386),
+  n_plot_ph2   = ceiling(n_plot * (1 + phase1_error)),
+  sfc_adjust   = c(2.5, 5, 1.7, 0.7, 1, 1.1, 3)
+)
+
+```
+

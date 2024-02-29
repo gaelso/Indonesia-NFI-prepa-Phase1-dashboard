@@ -259,8 +259,34 @@
    
  }
 
+ 
+ if (!("sf_ddggrid.gpkg" %in% list.files("data", pattern = "gpkg"))){
+   
+   path_dggrid <- list.files("data-raw/DGGRID", full.names = T)
+   
+   dggrid <- map(path_dggrid, st_read) |>
+     data.table::rbindlist() |>
+     st_as_sf()
+   
+   st_write(dggrid, "data/sf_ddggrid.gpkg")
+   
+   rm(path_dggrid, dggrid)
+ }
+ 
 
-
+ if (!("sf_hilbert.gpkg" %in% list.files("data", pattern = "gpkg"))){
+   
+   path_hilbert <- list.files("data-raw/Ph1-centroid-withSFC", pattern = "withSFC", full.names = T)
+   
+   hilbert <- map(path_hilbert, st_read) |>
+     data.table::rbindlist() |>
+     st_as_sf()
+   
+   st_write(hilbert, "data/sf_hilbert.gpkg")
+   
+   rm(path_hilbert, hilbert)
+ }
+ 
 
 
 

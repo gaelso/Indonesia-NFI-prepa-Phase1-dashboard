@@ -1,4 +1,11 @@
 
+library(sf)
+library(tidyverse)
+
+load("data-raw/sf_islands.Rdata")
+
+disa_lucat_stat <- read_csv("data/disa_lucat_stat.csv")
+ceo <- read_csv("data/ceo.csv") 
 
 path_res <- "results"
 dir.create(path_res, showWarnings = F)
@@ -23,7 +30,7 @@ sfc_factor <- tibble(
 #   )
 
 ## CEO number of total accessible plots in forest and TOF
-table(ceo2$lu_access2, ceo2$pl_island)
+table(ceo$lu_access2, ceo$pl_island)
 
 path_dat <- list.files("data-raw/Ph1-centroid-withSFC", pattern = "withSFC", full.names = T)
 
