@@ -3,6 +3,9 @@ library(ggpubr)
 library(sf)
 library(tidyverse)
 
+theme_set(theme_bw())
+
+sample(1:100, 1)
 
 ceo <- read_csv("data/ceo_withfriction_hilbert.csv")
 sf_ceo <- ceo |> 
@@ -17,14 +20,17 @@ load("data-raw/sf_islands.Rdata")
 
 
 sfc_factor <- tibble(
-  island_name  = c("BaliNusa", "Jawa", "Kalimantan", "Maluku", "Papua", "Sulawesi", "Sumatera"),
-  island_code  = c("BL", "JV", "KL", "ML", "PP", "SL", "SM"),
-  phase1_error = head(round(disa_lucat_stat$disagree / disa_lucat_stat$total, 2), -1),
-  n_plot       = c(119, 148, 413, 219, 257, 486, 386),
-  n_plot_ph2   = ceiling(n_plot * (1 + phase1_error)),
-  sfc_adjust   = c(2.5, 5, 1.7, 0.7, 1, 1.1, 3)
+  island_name   = c("BaliNusa", "Jawa", "Kalimantan", "Maluku", "Papua", "Sulawesi", "Sumatera"),
+  island_code   = c("BL", "JV", "KL", "ML", "PP", "SL", "SM"),
+  phase1_error  = head(round(disa_lucat_stat$disagree / disa_lucat_stat$total, 2), -1),
+  sfc_adjust    = c(1, 1, 1, 1, 1, 1, 1),
+  n_plot_init   = c(119, 148, 413, 219, 257, 486, 386),
+  n_plot_target = ceiling(n_plot_init * (1 + phase1_error) * sfc_adjust),
+  seed          = c(67, 93, 76, 16, 59, 89, 19)
+  #n_plot_ph2   = ceiling(n_plot * (1 + phase1_error)),
+  #sfc_adjust   = c(2.5, 5, 1.7, 0.7, 1, 1.1, 3)
 )
-
+sfc_factor
 
 ## Start iteration
 table(ceo$lu_cat2)
@@ -56,14 +62,20 @@ ceo_access <- ceo |>
       lu_cat2 == "TOF" & friction_health <= 180 ~ "TOF-access",
       lu_cat2 == "TOF" ~ "TOF-no access",
       TRUE ~ "Other land"
+    ),
+    friction_access = case_when(
+      friction_health <= 180 ~ "1 day measurement",
+      friction_health <= 600 ~ "3 days measurement",
+      TRUE ~ "5 days or more"
     )
   )
 
-table(ceo_access$lu_access1, ceo_access$lu_access2)
+table(ceo_access$lu_access1, ceo_access$lu_access2, useNA = "ifany")
 
 sf_ceo_access <- ceo_access |>
   mutate(lon_copy = lon, lat_copy = lat) |>
   st_as_sf(coords = c("lon_copy", "lat_copy"), crs = 4326)
+
 
 sf_dggrid_access <- sf_dggrid |> st_join(sf_ceo_access)
 
@@ -106,19 +118,29 @@ npool_access3 <- ceo_access |>
 sfc_factor2 <- sfc_factor |>
   left_join(npool_access1, by = c("island_name" = "pl_island")) |>
   left_join(npool_access2, by = c("island_name" = "pl_island")) |>
-  left_join(npool_access3, by = c("island_name" = "pl_island"))
+  left_join(npool_access3, by = c("island_name" = "pl_island")) |>
+  mutate(
+    samprop_access2 = round(n_plot_target / n_pool_access2, 2),
+    samprop_access3 = round(n_plot_target / n_pool_access3, 2)
+  )
 sfc_factor2
   
 
 
-## RUN ALGO FOR EACH ISLAND
+
+
+##
+## RUN ALGO FOR ONE ISLAND
+##
+
+
 
 x = sfc_factor$island_name[3]
 
-
 island_code <- sfc_factor |> filter(island_name == x) |> pull(island_code)
+seed_num    <- sfc_factor |> filter(island_name == x) |> pull(seed)
 sf_strata   <- sf_islands[[x]]
-ceo_sub     <- ceo_access |> filter(pl_island == x) |> mutate(lu_access = lu_access2)
+ceo_sub     <- ceo_access |> filter(pl_island == x) |> mutate(lu_access = lu_access2) |> arrange(hilbert_dist)
 
 sf_ceo_sub <- ceo_sub |>
   mutate(lon_copy = lon, lat_copy = lat) |>
@@ -130,15 +152,14 @@ sf_dggrid_sub <- sf_dggrid |>
   arrange(hilbert_dist)
 
 ## Show sfc and access
-gr <- sf_ceo_sub |>
-  arrange(hilbert_dist) |>
-  ggplot() +
-  geom_sf(aes(color = hilbert_dist), size = 0.6) +
-  geom_path(aes(x = lon, y = lat, color = hilbert_dist)) +
-  scale_color_viridis_c() +
-  theme_void() +
-  theme(legend.position = "none")
-print(gr)
+# gr <- sf_ceo_sub |>
+#   ggplot() +
+#   geom_sf(aes(color = hilbert_dist), size = 0.6) +
+#   geom_path(aes(x = lon, y = lat, color = hilbert_dist)) +
+#   scale_color_viridis_c() +
+#   theme_void() +
+#   theme(legend.position = "none")
+# print(gr)
 
 gr <- ggplot() +
   geom_sf(data = sf_dggrid_sub, aes(fill = lu_access), size = 0.6) +
@@ -147,68 +168,189 @@ gr <- ggplot() +
   theme_void()
 print(gr)
 
+## SFC inputs
+n_pool      <- nrow(ceo_sub)
+n_pool_sub  <- ceo_sub |> filter(lu_access %in% c("Forest-access", "Forest-no access")) |> nrow()
+#n_pool_sub  <- ceo_sub |> filter(lu_access %in% c("Forest-access")) |> nrow()
+n_plot_init <- sfc_factor |> filter(island_name == x) |> pull(n_plot_init)
+n_plot_U    <- sfc_factor |> filter(island_name == x) |> pull(phase1_error)
+sfc_adjust  <- sfc_factor |> filter(island_name == x) |> pull(sfc_adjust)
 
-n_pool <- ceo_sub |> filter(lu_access1 == "Forest-access") |> nrow()
+n_plot <- ceiling(n_plot_init * (1 + n_plot_U) * sfc_adj)
+n_plot
 
-n_plot <- sfc_factor |> filter(island_name == target_island) |> pull(n_plot_ph2)
-sfc_adjust <- sfc_factor |> filter(island_name == target_island) |> pull(sfc_adjust)
-n_access_forest <- sf_point |> as_tibble() |> filter(lu_access == "Forest-access") |> nrow()
-sfc_corr <- round(n_access_forest / n_plot, 2)
-n_plot2 <- ceiling(n_plot * sfc_corr * sfc_adjust)
+n_pool_sub
 
-samprop <- n_plot / n_access_forest
+table(sf_ceo_sub$lu_access, sf_ceo_sub$friction_access)
+
+samprop <-  round(n_plot / n_pool_sub, 2)
+samprop
+
 ceiling(1/samprop)
 
-ran_start_range <- 1:ceiling(n_pool / n_plot2)
-ran_start_range
+## Chose seed at random
+set.seed(seed_num)
+if (length(ceiling(1/samprop) < 5)){
+  start_point <- sample(2:5, 1)
+} else {
+  start_point <- sample(2:ceiling(1/samprop), 1)
+}
 
-## !!! Temporary setting a seed to make results stable
-set.seed(10)
-start_point <- sample(ran_start_range, 1)
-
-## Get sampling proportion of available plots
-sampling_proportion <- n_plot2 / n_pool
-print(sampling_proportion)
+## Recap SFC params
+samprop
+start_point
 
 ## Initialize for loop
-pool_seqnum <- sf_point$FRA_HEXID
-plot_seqnum <- vector(length = n_pool)
-sfc_cluster <- vector(length = n_pool) 
+pool_dist <- sort(ceo_sub$hilbert_dist)
 
+ph2_dist <- vector(length = n_pool) ## Hilbert dist of the chosen plots
+ph2_no   <- vector(length = n_pool) ## Rank of the chosen plots, 1, 2, 3, ...
+ph2_pos  <- vector(length = n_pool) ## Position of the chosen plot, ie value in 1:n_pool
 
-j <- start_point
-for (i in 1:n_pool) {
+j <- 1
+for (i in start_point:n_pool) {
   
-  if (i >= start_point & ceiling(i * sampling_proportion) == j) {
-    plot_seqnum[i] <- pool_seqnum[i]
+  if (ceiling((i - start_point + 1) * samprop) == j) {
+    ph2_dist[i] <- pool_dist[i]
+    ph2_pos[i]  <- i
+    ph2_no[i]   <- j
     j <- j + 1
-  } else {
-    plot_seqnum[i] <- 0
-    sfc_cluster[i] <- j
+  # } else {
+  #   ph2_dist[i] <- 0
+  #   ph2_pos[i]  <- 0
+  #   ph2_no[i]   <- 0
   }
 } ## End for
 
+## group SFC results
+ph2_sfc <- tibble(hilbert_dist = ph2_dist, ph2_pos = ph2_pos, ph2_no = ph2_no) |>
+  filter(hilbert_dist > 0)
 
-# plot_seqnum_selected <- plot_seqnum[plot_seqnum != 0]
+sf_ceo_ph2 <- sf_ceo_sub |> 
+  left_join(ph2_sfc, by = "hilbert_dist")
 
-sf_point_phase2 <- sf_point %>% 
-  mutate(
-    field_plot_seqnum = plot_seqnum,
-    sfc_cluster_no    = sfc_cluster
-  ) |>
-  filter(field_plot_seqnum != 0) |>
-  mutate(lu_cat3 = if_else(lu_cat2 %in% c("Forest", "TOF"), lu_cat2, "Other"))
+head(sf_ceo_ph2$ph2_pos, 50)
 
-#table(sf_point_phase2$lu_cat2)
-#table(sf_point_phase2$lu_access)
-table(sf_point_phase2$lu_access2, sf_point_phase2$lu_cat3)
+summary(sf_ceo_ph2$ph2_no)
+
+sf_ceo_ph2 |>
+  filter(!is.na(ph2_no)) |>
+  ggplot() +
+  geom_sf(aes(color = ph2_no)) +
+  scale_color_viridis_c()
+
+sf_ceo_ph2 |>
+  filter(!is.na(ph2_no), lu_cat2 == "Forest") |>
+  arrange(hilbert_dist) |>
+  ggplot() +
+  geom_sf(data = sf_strata, fill = "grey90", color = NA) + 
+  geom_path(data = sf_ceo_ph2, aes(x = lon, y = lat), color = "grey80") +
+  geom_sf(data = sf_ceo_ph2, aes(x = lon, y = lat, color = lu_access)) +
+  geom_sf(color = "black", shape = 8) +
+  scale_color_manual(values = c("green", "red", "grey80", "yellowgreen", "lightpink"))
+
+sf_ph2 <- sf_ceo_ph2 |> 
+  filter(!is.na(ph2_no))
+
+## random selection of TOF
+ceo_tof_id <- sf_ph2 |>
+  filter(lu_access == "TOF-access") |>
+  pull(plotid)
+
+if (length(ceo_tof_id) <= 70){
+  tof_sample <- ceo_tof_id
+} else {
+  set.seed(seed_num)
+  tof_sample <- sample(ceo_tof_id, 70)
+}
+
+gr <- sf_ph2 |>
+  filter(lu_cat2 == "Forest" | plotid %in% tof_sample) |>
+  arrange(hilbert_dist) |>
+  ggplot() +
+  geom_sf(data = sf_strata, fill = "grey90", color = NA) + 
+  geom_path(data = sf_ceo_ph2, aes(x = lon, y = lat), color = "grey80") +
+  geom_sf(aes(color = lu_access), size = 0.8) +
+  scale_color_manual(values = c("darkgreen", "darkred", "yellowgreen")) +
+  labs(color = "") +
+  theme_void()
+print(gr)
+ggsave(gr, filename = paste0("results/", x, "-NFI-Phase2-all samples.jpeg"), width = 24, height = 18, dpi = 300, units = "cm")
+
+tt <- sf_ph2 |>
+  filter(lu_cat2 == "Forest" | plotid %in% tof_sample)
+
+table(tt$lu_access)
+samprop
+start_point
+n_plot
+n_pool_sub
+x
+
+sf_ceo_ph2 |>
+  as_tibble() |>
+  write_csv(paste0("results/", x, "-CEO-results_with_ph2.csv"))
+
+sf_ph2 |>
+  as_tibble() |>
+  filter(lu_access == "Forest-access") |>
+  write_csv(paste0("results/", x, "-NFI-Phase2-Forest.csv"))
+
+sf_ph2 |>
+  as_tibble() |>
+  filter(lu_access == "Forest-no access") |>
+  write_csv(paste0("results/", x, "-NFI-Phase2-Forest-non accessible.csv"))
+
+sf_ph2 |>
+  as_tibble() |>
+  filter(plotid %in% tof_sample) |>
+  write_csv(paste0("results/", x, "-NFI-Phase2-TOF.csv"))
+
+sf_ph2 |>
+  as_tibble() |>
+  filter(lu_access == "Forest-access") |>
+  summarise(count = n(), .by = lu_sub) |>
+  write_csv(paste0("results/", x, "-NFI-Phase2-Forest-subcat.csv"))
+
+sf_ph2 |>
+  as_tibble() |>
+  filter(lu_access == "Forest-access") |>
+  summarise(count = n(), .by = friction_access) |>
+  write_csv(paste0("results/", x, "-NFI-Phase2-friction.csv"))
+
+
+
+
+
+
+
+
 
 ##
 ## Forest access vs target
 ##
 n_plot
-tt <- sf_point_phase2 |> filter(lu_access2 == "Forest-access") |> nrow()
+tt <- sf_ph2 |> filter(lu_access %in% c("Forest-access")) |> nrow()
+#tt <- sf_ph2 |> filter(lu_access %in% c("Forest-access", "Forest-no access")) |> nrow()
 tt
 tt > n_plot
 
+table(sf_ph2$lu_access)
+table(sf_ph2$lu_access, sf_ph2$friction_access)
+table(sf_ph2$lu_cat2, sf_ph2$friction_access)
+nrow(sf_ph2)
+
+sf_ph2 |>
+  filter(lu_cat == "Forest") |>
+  ggplot() +
+  geom_sf(data = sf_strata, fill = NA) +
+  geom_sf(aes(color = friction_access)) +
+  scale_color_manual(values = c("green", "pink", "darkred"))
+
+#table(sf_point_phase2$lu_cat2)
+#table(sf_point_phase2$lu_access)
+#table(sf_point_phase2$lu_access2, sf_point_phase2$lu_cat3)
+
+tt <- ceo_access |> filter(lu_cat2 == "Forest")
+table(tt$pl_island, tt$friction_access)
 

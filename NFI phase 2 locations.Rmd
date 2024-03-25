@@ -1,25 +1,32 @@
 ---
 title: "Creating NFI Phase 2 sample location with SFC"
 output:
-  word_document: default
-  html_document: default
+  word_document: 
+    highlight: tango
+  html_document: 
+    theme: flatly
+    fig_caption: true
 date: "`r Sys.Date()`"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 
 library(sf)
 library(tidyverse)
 
+theme_set(theme_bw())
+
 ```
+
 
 # Context 
 
-This technical report covers the establishment of field sample locations for the Improved "National Forest Inventory Plan for Indonesia Forest". The main document proposes a two-phases systematic stratified design with target sampling sizes for seven strata of dryland forest and one strata of mangrove forest.
+This technical report covers the establishment of field sample locations for the 2023 "National Forest Inventory Plan for Indonesia Forest". The main document proposes a two-phases systematic stratified design with target sampling sizes for seven strata of dryland & swamp forests and one strata of mangrove forest. Additional samples are also planned for Trees Outside Forest (TOF) within the non-forest land.
 
 Three annexes to the main report describe:
-1. Optimal sampling grids for the NFI phase 1 visual interpretation.
+1. Optimal sampling grids for the NFI phase 1 visual interpretation of dryland and swamps.
 1. Results of the NFI Phase 1 visual interpretation.
 1. Distribution of the NFI Phase 2 field sample location (this report).
 
@@ -27,34 +34,32 @@ A separate annex is dedicated to Mangrove, Mangrove sampling is not addressed in
 
 
 
+\  
+
 # Method
 
 ## General approach
 
 Given a final dataset of NFI phase 1 visually interpreted samples, the general approach to selecting the NFI phase 2 samples was as follows:
 
-1. Determine the distance of each sample along a space filling curve (SFC), following Hilbert's distance and computed with Python dask-geopandas [library](https://dask-geopandas.readthedocs.io/en/stable/docs/reference/api/dask_geopandas.GeoSeries.hilbert_distance.html)).
-1. Select samples along the curve based on a sampling proportion calculated with the number of plots in the pool (i.e. the NFI phase 1 plots that are accessible forest), the number of target plots to sample (i.e. the number of target plots for the Phase 2) and adjustment factors to take into consideration uncertainty around the identification of forest / non-forest in the Phase 1. 
+1. Determine the distance of each sample along a space filling curve (SFC), following Hilbert's distance.
+1. Select samples along the curve based on a sampling proportion calculated with the number of plots in the pool of NFI Phase 1 plots that were identified as forest, the number of target plots to sample (i.e. the number of target plots for the Phase 2) and adjustment factors to take into consideration uncertainty around the identification of forest / non-forest in the Phase 1. 
 1. A random starting point is assigned then the selection is systematic following the space filling curve. 
 1. The adjustment factors are tailored manually to provide a number of forest plots slightly exceeding the target.
 1. All natural forest samples are kept, 70 samples are randomly selected among the accessible Trees Outside Forest samples.
-1. Separately, additional samples in primary forest are provided for an intensification study on forest types that cover an area too small to be effectively represented in a national level sampling design. These samples can be measured according to the NFI field manual and integrated in the NFI database management system. However they should be filtered out from the national level statistics calculation chains and separate calculation chains should be designed specifically for these samples.
+1. Separately, additional samples in primary forest can be provided for an intensification study on forest types that cover an area too small to be effectively represented in a national level sampling design. These samples can be measured according to the NFI field manual and integrated in the NFI database management system. However they should be filtered out from the national level statistics calculation chains and separate calculation chains should be designed specifically for these samples.
 
 The sampling proportion is calculated as follows:
 
-$$sampling\_proportion = ceiling \left( \frac{n\_plot * (1 + U) * sfc\_adj}{n\_pool} \right)$$
+$$sampling\_proportion = \frac{ceiling( n\_plot * (1 + U))}{n\_pool}$$
 
-in R:
+With$U$ the uncertainty around forest/non-forest identification in the Phase 1.
 
-```sampling_proportion = ceiling(n_plot * (1 + U) * sfc_adj / n_pool)```
-
-With $sfc\_adj$ a manually adjusted variable to reach the target number of samples in accessible forest and $U$ the uncertainty around forest/non-forest identification in the Phase 1.
-
-
+\  
 
 ## Input Data
 
-```{r, include=FALSE}
+```{r, include=FALSE, message=FALSE, warning=FALSE}
 
 ceo <- read_csv("data/ceo_withfriction_hilbert.csv")
 sf_ceo <- ceo |> 
@@ -63,7 +68,7 @@ sf_ceo <- ceo |>
 
 disa_lucat_stat <- read_csv("data/disa_lucat_stat.csv") 
 
-sf_dggrid <- st_read("data/sf_ddggrid.gpkg") |> st_join(sf_ceo)
+sf_dggrid <- st_read("data/sf_ddggrid.gpkg")
 
 load("data-raw/sf_islands.Rdata")
 
@@ -94,39 +99,39 @@ knitr::kable(
 
 ```
 
-- The Discrete Global Grid hexagons matching the CEO NFI Phase 1 plot locations. For mapping purposes, the spatial information is easier to display on surface accurate polygons rather than points, because point data tends not to scale well with image resolution.
+- The Discrete Global Grid hexagons matching the CEO NFI Phase 1 plot locations. For mapping purposes, the spatial information is easier to display on surface accurate polygons rather than points, because points tend not to scale well with image resolution.
 
-```{r, fig.cap="Plot accessibility based on Weiss and al, 2020 motorized travel time to healthcare in hours. The 3 hours color code represents 3 hours and more."}
+```{r, fig.cap="NFI Phase 1 plot locations and grid hexagons in a 1 degree latitude and longitude area in Kalimantan."}
 
 sf_dggrid |>
-  mutate(friction_health2 = if_else(friction_health / 60 > 3, 3, friction_health / 60)) |>
   ggplot() +
-  geom_sf(aes(fill = friction_health2), color = NA) +
-  scale_fill_viridis_c(direction = -1) +
-  theme_bw() +
-  theme(legend.position = "bottom") +
-  labs(fill = "")
+  geom_sf(data = sf_islands[["Kalimantan"]]) +
+  geom_sf(data = sf_ceo) +
+  geom_sf(fill = NA, color = "grey60") +
+  coord_sf(xlim = c(110, 111), ylim = c(0, 1))
 
 ```
 
-- The raster data on motorized travel time to healthcare was also used to propose an alternative accessibility option to the CEO visual interpretation (See section on accessibility below). The values of this spatial layer were extracted at the location of the NFI Phase 1 samples.
+- The raster data on motorized travel time to healthcare (See [Weiss and al., 2020](https://doi.org/10.1038/s41591-020-1059-1)) was also used to propose an alternative accessibility option to the CEO visual interpretation (See section on accessibility below). The values of this spatial layer were extracted at the location of the NFI Phase 1 samples.
 
-
+\  
 
 ## Data analysis workflow
 
-The analysis workflow consisted in (1) setting rules for plot accessibility to determine the existing pool of accessible forest plots, then (2) running the plot selection based on manually tailored sampling proportion to reach the target number of plots. The plot selection process started with assigning a random starting point at the beginning of the space filling curve then selecting the following plots based on the sampling proportion. For example, with a sampling proportion of 0.1, one plot is selected every 10 plots.
+The analysis workflow consisted in (1) setting rules for plot accessibility to determine the existing pool of accessible forest plots, (2) setting the sampling proportion and (3) running the plot selection along a space filling curve. The plot selection process started with assigning a random starting point at the beginning of the space filling curve then selecting the following plots based on the sampling proportion. For example, with a sampling proportion of 0.1, one plot is selected every 10 plots.
 
+\  
 
 ### Options to determine plot accessibility
 
-At the end of the NFI Phase 1 visual interpretation, the preliminary results showed that in Papua, and probably also in Kalimantan, the accessibility by river was too loosely defined. It resulted in many plots being assessed as accessible by river because a river was found within 5 km to plot centers but in reality these rivers might not be navigable or the travel time to plot center form the nearest harbor would be too long. Three options were therefore tested to address this issue:
+At the end of the NFI Phase 1 visual interpretation, the preliminary results showed that in Papua, and probably also in Kalimantan, the accessibility by river was too loosely defined. A plot was considered accessible if either a river, a road or the sea were found within 5 km of the plot center. The navigability of the river or the time required from the closest village or potential camping site to the plot were not considered. It resulted in many plots being assessed as accessible by river because a river was found within 5 km to plot centers but in reality these rivers might not be navigable or the travel time to plot center form the nearest harbor would be too long. Three options were therefore tested to address this issue:
 
 1. Access by road, river or sea based on the NFI Phase 1 visual interpretation, i.e. a road, river or sea is within 5 km of the plot center.
   
-1. Restricted version where access by road only for Kalimantan and Papua. This more restrictive definition is due to many plot having a river nearby but the journey to reach the plots would be too long, or the river is not navigable. 
+1. Access by road only was set for Kalimantan and Papua. Other islands followed option 1. This more restrictive definition is due to many plot having a river nearby but the journey to reach the plots would be too long, or the river is not navigable. 
   
-1. Using the [Global Motorized Travel time to Healthcare](https://malariaatlas.org/) friction spatial data to define accessibility. This data is based on road infrastructure and healthcare facilities databases from Google map, Open Street Map and a number of other datasets (See [Weiss and al., 2020](https://doi.org/10.1038/s41591-020-1059-1)) to evaluate how far in minutes each pixel is from a healthcare facility. Note that this data show fewer accessible plots that  
+1. Using the [Global Motorized Travel time to Healthcare](https://malariaatlas.org/) friction spatial data to define accessibility. This data is based on road infrastructure and healthcare facilities databases from Google map, Open Street Map and a number of other datasets (See [Weiss and al., 2020](https://doi.org/10.1038/s41591-020-1059-1)) to evaluate how far in minutes each pixel is from a healthcare facility. Plot located less than or equal to 3 hours from a Healthcare center were considered measurable in one day and therefore accessible. Plots reachable between 3 and 10 hours were considered measurable in 3 days each (two days for traveling back and forth and one day for measurement), noting that this assessment doesn't take into consideration the feasibility of camping near the plot locations.
+
 
 ```{r, include=FALSE}
 
@@ -156,85 +161,654 @@ ceo_access <- ceo |>
       lu_cat2 == "TOF" & friction_health <= 180 ~ "TOF-access",
       lu_cat2 == "TOF" ~ "TOF-no access",
       TRUE ~ "Other land"
+    ),
+    lu_access3b = case_when(
+      lu_cat2 == "Forest" & friction_health <= 180  ~ "Forest-access-3h",
+      lu_cat2 == "Forest" & friction_health <= 600  ~ "Forest-access-10h",
+      lu_cat2 == "Forest" ~ "Forest-no access",
+      lu_cat2 == "TOF" & friction_health <= 180 ~ "TOF-access-3h",
+      lu_cat2 == "TOF" & friction_health <= 600 ~ "TOF-access-10h",
+      lu_cat2 == "TOF" ~ "TOF-no access",
+      TRUE ~ "Other land"
+    ),
+        friction_access = case_when(
+      friction_health <= 180 ~ "1 day measurement",
+      friction_health <= 600 ~ "3 days measurement",
+      TRUE ~ "5 days or more"
     )
   )
 
 ```
 
+\  
 
-
-
-
-### Setting up space filling curve
+### Setting up the space filling curves
 
 The space filling curve is a method to have a line go through all the plots, passing by each plot only one time. It has been used to get a systematic sampling without the limitations of traditional grids (hexagonal or square), mainly the potential biases if geographic patterns align with the grid directions and the grid spacing constraining the sample sizes. An example of using space filling curve for natural resources monitoring can be found in [Scott, 1993](https://www.fs.usda.gov/research/treesearch/13672).
 
-The Hilbert distance was computed using the dask-geopandas python library. It takes a spatial dataset of points and output the same data with an additional column ordering plots by their distance to the inital starting point on the space filling curve.
+The Hilbert distance was computed using the dask-geopandas python library. It takes a spatial dataset of points and output the same data with an additional column ordering plots by their distance to the initial starting point on the space filling curve.
 
-```{r, fig.cap="Space filling curve in action ove the NFI Phase 1 samples in Kalimantan"}
+```{r, fig.cap="Space filling curve in action over the NFI Phase 1 samples in Kalimantan"}
 
 sf_ceo |>
   filter(pl_island == "Kalimantan") |>
   arrange(hilbert_dist) |>
   ggplot() +
-    geom_sf(aes(color = hilbert_dist), size = 0.6) +
-    geom_path(aes(x = lon, y = lat, color = hilbert_dist)) +
-    scale_color_viridis_c() +
-    theme_void() +
-    theme(legend.position = "none")
+  geom_sf(data = sf_islands[["Kalimantan"]], fill = "grey90", color = NA) +
+  geom_sf(aes(color = hilbert_dist), size = 0.6) +
+  geom_path(aes(x = lon, y = lat, color = hilbert_dist)) +
+  scale_color_viridis_c() +
+  theme(legend.position = "none") +
+  coord_sf(xlim = c(110, 112), ylim = c(-1, 1))
 
 ```
 
-
+\  
 
 ### Running the space filling curve based sample selection
 
-The selection of plots along the curve were based on a small algorithm that checks if the location matches the sampling proportion. The algorithm runs for each iteration `i` from 1 to the total number of plots in the pool `n_pool`. if the value of `i` is past the starting point randomly allocated. !!!!!
+The selection of plots along the curve were based on a small algorithm that stores the position, rank and Hilbert distance of the selected plots. Plot are selected with a running variable $j$ which increase value every time it reaches the ceiling of the product $(i - start\_point + 1) \times sampling\_proportion$. 
 
-
+At the end of the algorithm, 3 vectors of data contain for each plot of the NFI Phase 1: the Hilbert's distance, rank and position of the selected plots for the NFI phase 2 and NA otherwise.
 
 ```{r, echo = TRUE, eval = FALSE}
-pool_seqnum <- sf_point$FRA_HEXID
-plot_seqnum <- vector(length = n_pool)
-sfc_cluster <- vector(length = n_pool) 
+
+pool_dist <- sort(ceo_sub$hilbert_dist)
+
+ph2_dist <- vector(length = n_pool) ## Hilbert dist of the chosen plots
+ph2_no   <- vector(length = n_pool) ## Rank of the chosen plots, 1, 2, 3, ...
+ph2_pos  <- vector(length = n_pool) ## Position of the chosen plot, ie value in 1:n_pool
+
+j <- 1
+for (i in start_point:n_pool) {
   
-j <- start_point
-  for (i in 1:n_pool) {
-    
-    if (i >= start_point & ceiling(i * sampling_proportion) == j) {
-      plot_seqnum[i] <- pool_seqnum[i]
-      j <- j + 1
-    } else {
-      plot_seqnum[i] <- 0
-      sfc_cluster[i] <- j
-    }
+  if (ceiling((i - start_point + 1) * samprop) == j) {
+    ph2_dist[i] <- pool_dist[i]
+    ph2_pos[i]  <- i
+    ph2_no[i]   <- j
+    j <- j + 1
   }
+  
+}
 
 ```
 
 
 
+\ 
+
+# Results
+
+## Forest accessibility based on NFI Phase 1 visual interpretation vs Friction layer
+
+The three options tested are increasingly restrictive, as shown in the figure below. While the options 1 and 2 still show accessible plots in all parts of the country, the friction layer shows large continuous areas being inaccessible, most notably in Kalimantan and Papua.
+
+```{r, fig.height=12, fig.width=8, fig.dpi=300, fig.cap="Land cover and accessibility of the NFI Phase 1 samples following 3 options to defnie accessibility: (1) Accessible by road, river or sea, (2) same as 1 but only accessible by road in Kalimantan and Papua and (3) less than 3 hours motorized access to healthcare."}
+
+sf_ceo_access <- ceo_access |>
+  mutate(lon_copy = lon, lat_copy = lat) |>
+  st_as_sf(coords = c("lon_copy", "lat_copy"), crs = 4326)
 
 
+sf_dggrid_access <- sf_dggrid |> st_join(sf_ceo_access)
+
+gr_access1 <- ggplot(sf_dggrid_access) +
+  geom_sf(aes(fill = lu_access1), color = NA) +
+  scale_fill_manual(values = c("darkgreen", "darkred", "grey80", "yellowgreen", "lightpink")) +
+  labs(fill = "", subtitle = "Accessiblity option 1") +
+  theme_void()
+
+gr_access2 <- ggplot(sf_dggrid_access) +
+  geom_sf(aes(fill = lu_access2), color = NA) +
+  scale_fill_manual(values = c("darkgreen", "darkred", "grey80", "yellowgreen", "lightpink")) +
+  labs(fill = "", subtitle = "Accessiblity option 2") +
+  theme_void()
+
+gr_access3 <- ggplot(sf_dggrid_access) +
+  geom_sf(aes(fill = lu_access3), color = NA) +
+  scale_fill_manual(values = c("darkgreen", "darkred", "grey80", "yellowgreen", "lightpink")) +
+  labs(fill = "", subtitle = "Accessiblity option 3") +
+  theme_void()
+
+ggpubr::ggarrange(gr_access1, gr_access2, gr_access3, nrow = 3, align = "v", common.legend = T, legend = "bottom")
+
+```
 
 
-## Results
+The accessibility identified during the NFI Phase 1 visual interpretation differed from the friction layer for around 25 % of the plots. These 25 % are either accessible on the friction layer but not in the NFI Phase 1, or accessible in the NFI Phase 1 data but not according to the friction layer.
 
-
-
-
-- Create a table of space filling curve input parameters for each strata
+*Comparison of accessible plots based on the friction layer aggregated to 3 classes and based on the NFI Phase 1 visual interpretation in Kalimantan, access by road only (option 2).*
 
 ```{r}
 
-sfc_factor <- tibble(
-  island_name  = c("BaliNusa", "Jawa", "Kalimantan", "Maluku", "Papua", "Sulawesi", "Sumatera"),
-  island_code  = c("BL", "JV", "KL", "ML", "PP", "SL", "SM"),
-  phase1_error = head(round(disa_lucat_stat$disagree / disa_lucat_stat$total, 2), -1),
-  n_plot       = c(119, 148, 413, 219, 257, 486, 386),
-  n_plot_ph2   = ceiling(n_plot * (1 + phase1_error)),
-  sfc_adjust   = c(2.5, 5, 1.7, 0.7, 1, 1.1, 3)
-)
+tt <- ceo_access |> filter(pl_island == "Kalimantan")
+table(tt$lu_access2, tt$friction_access)
 
 ```
+
+The next table shows together:
+
+- the initial number of target plots for dryland & swamps according the main NFI design document, 
+
+- the increased number of target locations taking into consideration the uncertainty around forest/non-forest in the NFI Phase 1 QAQC data,
+
+- the total number of forest plots identified in the NFI Phase 1, regardless of accessibility,
+
+- the number of accessible forest plots according to option 2 (accessible by road only for Kalimantan and Papua, all access for other island groups), 
+
+- the number of accessible forest plots according to option option 3 (less than 3 hours motorized access to healthcare), and
+
+- The total number of accessible forest plots following option 3 but increased to include plots that can be measured in 1 or 3 days (less than 10 hours motorized access to healthcare), later named option 3b.
+
+The same information is presented in the following table, but as a ratio between the target number of plots and the accessible number of forest plot, which represent the sampling proportion. 
+
+```{r, include=FALSE}
+
+npool_total <- ceo_access |>
+  filter(lu_cat2 == "Forest") |> ## 600 mins = 10 h
+  group_by(pl_island) |>
+  summarise(n_pool_total = n())
+
+npool_access1 <- ceo_access |>
+  filter(lu_access1 == "Forest-access") |>
+  group_by(pl_island) |>
+  summarise(n_pool_access1 = n())
+
+npool_access2 <- ceo_access |>
+  filter(lu_access2 == "Forest-access") |>
+  group_by(pl_island) |>
+  summarise(n_pool_access2 = n())
+
+npool_access3 <- ceo_access |>
+  filter(lu_access3 == "Forest-access") |>
+  group_by(pl_island) |>
+  summarise(n_pool_access3 = n())
+
+npool_access3b <- ceo_access |>
+  filter(lu_cat2 == "Forest" & friction_health <= 600) |> ## 600 mins = 10 h
+  group_by(pl_island) |>
+  summarise(n_pool_access3b = n())
+
+sfc_factor <- tibble(
+  island_name   = c("BaliNusa", "Jawa", "Kalimantan", "Maluku", "Papua", "Sulawesi", "Sumatera"),
+  island_code   = c("BL", "JV", "KL", "ML", "PP", "SL", "SM"),
+  phase1_error  = head(round(disa_lucat_stat$disagree / disa_lucat_stat$total, 2), -1),
+  sfc_adjust    = c(1, 1, 1, 1, 1, 1, 1),
+  n_plot_init   = c(119, 148, 413, 219, 257, 486, 386),
+  n_plot_target = ceiling(n_plot_init * (1 + phase1_error) * sfc_adjust),
+  seed          = c(67, 93, 76, 16, 59, 89, 19)
+  ) |>
+  left_join(npool_total, by = c("island_name" = "pl_island")) |>
+  left_join(npool_access1, by = c("island_name" = "pl_island")) |>
+  left_join(npool_access2, by = c("island_name" = "pl_island")) |>
+  left_join(npool_access3, by = c("island_name" = "pl_island")) |>
+  left_join(npool_access3b, by = c("island_name" = "pl_island")) |>
+  mutate(
+    samprop_access2 = round(n_plot_target / n_pool_access2, 2),
+    samprop_access3 = round(n_plot_target / n_pool_access3, 2),
+    samprop_access3b = round(n_plot_target / n_pool_access3b, 2),
+  )
+
+
+```
+
+
+```{r}
+
+total <- sfc_factor |>
+  select(n_plot_init, n_plot_target, n_pool_total, n_pool_access2, n_pool_access3, n_pool_access3b) |>
+  colSums()
+
+sfc_factor |>
+  select(island_name, n_plot_init, n_plot_target, n_pool_total, n_pool_access2, n_pool_access3, n_pool_access3b) |>
+  rbind(c("Total", total)) |>
+  knitr::kable(
+    col.names = c("Island group", "Nplot initial", "Nplot target", "Ntotal", "Naccess op.2", "Naccess op.3", "Naccess op.3b"), 
+    caption = "Number of target vs total number of forest plots and accessible forest plots following options 2, 3 and 3b (less than 10 h to access).")
+
+```
+
+The option 2 and 3 have a similar number of accessible forest plots for some of the island groups (Bali Nusa, Jawa, Kalimantan, Sumatera) but for others there is much less accessible plots with option 3 (Maluku, Papua, Sulawesi). In these island groups, a lot of the plots visually interpreted as accessible by sea are considered inaccessible in the friction layer. In Papua, many plots considered accessible by river where also too far fro healthcare in the friction layer. In these cases, the friction layer might be a better source of information as the NFI Phase 1 visual interpretation did not consider the travel time from cities or villages to the plots, which might be too long even if there is a river or beach nearby.
+
+```{r}
+
+sfc_factor |>
+  select(island_name, n_plot_init, n_plot_target, samprop_access2, samprop_access3, samprop_access3b) |>
+  knitr::kable(
+    col.names = c("Island group", "Nplot initial", "Nplot target", "Sampling proportion op.2", "Sampling proportion op.3", "Sampling proportion op.3b"), 
+    caption = "Sampling proportion to have the target number of plots in accessbile forest following options 2, 3 and plots that match both 2 and 3.")
+
+```
+
+Following the accessibility option 2, all island groups have enough accessible forest plots to meet the target number of plots for NFI phase 2. However based on the friction layer, Maluku, Papua and Sumatera do not have enough enough accessible forest plots to meet to the target requirement for Phase 2, also joined by Kalimantan when option 2 and 3 are combined.
+
+The option 3b solves this issue and provides a much larger pools of plots to chose from. The figure below also shows that it reduces the inaccessible areas and should provide a better pool of sample plots to later estimate the forest characteristics of non accessible forest plots.
+
+```{r, fig.cap="Land cover and motorized time to measure plots to visualize option 3b."}
+
+gr_access3b <- sf_dggrid_access |>
+  mutate(
+    lu_access3b = case_when(
+      lu_cat2 == "Forest" & friction_health <= 180  ~ "Forest-access-3h",
+      lu_cat2 == "Forest" & friction_health <= 600  ~ "Forest-access-10h",
+      lu_cat2 == "Forest" ~ "Forest-no access",
+      TRUE ~ "Other land"
+    )
+  ) |>
+  ggplot() +
+  geom_sf(aes(fill = lu_access3b), color = NA) +
+  scale_fill_manual(values = c("darkgreen", "yellowgreen", "darkred", "grey90")) +
+  labs(fill = "") +
+  theme_void()
+print(gr_access3b)
+
+```
+
+\  
+
+## NFI Phase 2 samples for dryland and swamps based on option 2
+
+In this approach, the number of accessible forest plots was based on option 2. The sampling proportions ranged from 0.45 in Maluku to 0.89 in Sumatera. This means that half to most of the NFI Phase 1 samples are selected, and while it provides the desired number of plot for the second phase of the NFI, the plots that are not accessible should also be assessed using GEDI and / or airborne Lidar, to avoid biases. 
+
+\  
+
+### Detailed results for Kalimantan
+
+```{r, include=FALSE}
+
+x = sfc_factor$island_name[3]
+
+island_code <- sfc_factor |> filter(island_name == x) |> pull(island_code)
+seed_num    <- sfc_factor |> filter(island_name == x) |> pull(seed)
+sf_strata   <- sf_islands[[x]]
+ceo_sub     <- ceo_access |> filter(pl_island == x) |> mutate(lu_access = lu_access2) |> arrange(hilbert_dist)
+
+sf_ceo_sub <- ceo_sub |>
+  mutate(lon_copy = lon, lat_copy = lat) |>
+  st_as_sf(coords = c("lon_copy", "lat_copy"), crs = 4326)
+
+sf_dggrid_sub <- sf_dggrid |> 
+  st_join(sf_ceo_sub) |> 
+  filter(!is.na(plotid)) |>
+  arrange(hilbert_dist)
+
+## Show sfc and access
+# gr <- sf_ceo_sub |>
+#   ggplot() +
+#   geom_sf(aes(color = hilbert_dist), size = 0.6) +
+#   geom_path(aes(x = lon, y = lat, color = hilbert_dist)) +
+#   scale_color_viridis_c() +
+#   theme_void() +
+#   theme(legend.position = "none")
+# print(gr)
+
+```
+
+The number of accessible forest plots following option 2 is used to determine the sampling proportion, i.e. all plots with a road, river or sea withi 5 km, except for Kalimantan and Papua where road only is used. The next figure shows the distribution of forest and TOF accessible plots following option 2. In this scenario, accessible forest plot can still be found in the center of the island, in areas that the friction layer considers inaccessible for NFI.
+
+
+```{r, fig.cap="Land cover and accessibility based on Option 2. The plots are located at the center of the hexagons, but hexes are represented for a more spatially balanced figure."}
+
+gr <- ggplot() +
+  geom_sf(data = sf_dggrid_sub, aes(fill = lu_access), size = 0.6) +
+  scale_fill_manual(values = c("darkgreen", "darkred", "grey80", "yellowgreen", "lightpink")) +
+  labs(fill = "") +
+  theme_void()
+print(gr)
+
+```
+
+
+```{r}
+
+## SFC inputs
+n_pool      <- nrow(ceo_sub)
+n_pool_sub  <- ceo_sub |> filter(lu_access %in% c("Forest-access")) |> nrow()
+n_plot      <- sfc_factor |> filter(island_name == x) |> pull(n_plot_target)
+
+#table(sf_ceo_sub$lu_access, sf_ceo_sub$friction_access)
+
+samprop <-  round(n_plot / n_pool_sub, 2)
+
+```
+
+The sampling proportion of accessible forest plot is ```r samprop```. It means that the possible starting values are 1 or 2. To increase the randomness of the starting points, if the range of starting points is less than 5, then the starting point is chosen randomly from 1 to 5. A random number is selected once from 1 to 100 and used as a seed to select the starting point.
+
+
+```{r, include=FALSE}
+## Chose seed at random
+set.seed(seed_num)
+
+if (length(ceiling(1/samprop) < 5)){
+  start_point <- sample(2:5, 1)
+} else {
+  start_point <- sample(2:ceiling(1/samprop), 1)
+}
+
+## Initialize for loop
+pool_dist <- sort(ceo_sub$hilbert_dist)
+
+ph2_dist <- vector(length = n_pool) ## Hilbert dist of the chosen plots
+ph2_no   <- vector(length = n_pool) ## Rank of the chosen plots, 1, 2, 3, ...
+ph2_pos  <- vector(length = n_pool) ## Position of the chosen plot, ie value in 1:n_pool
+
+j <- 1
+for (i in start_point:n_pool) {
+  
+  if (ceiling((i - start_point + 1) * samprop) == j) {
+    ph2_dist[i] <- pool_dist[i]
+    ph2_pos[i]  <- i
+    ph2_no[i]   <- j
+    j <- j + 1
+  }
+} ## End for
+
+## group SFC results
+ph2_sfc <- tibble(hilbert_dist = ph2_dist, ph2_pos = ph2_pos, ph2_no = ph2_no) |>
+  filter(hilbert_dist > 0)
+
+sf_ceo_ph2 <- sf_ceo_sub |> 
+  left_join(ph2_sfc, by = "hilbert_dist")
+
+# head(sf_ceo_ph2$ph2_pos, 50)
+# summary(sf_ceo_ph2$ph2_no)
+
+# sf_ceo_ph2 |>
+#   filter(!is.na(ph2_no)) |>
+#   ggplot() +
+#   geom_sf(aes(color = ph2_no)) +
+#   scale_color_viridis_c()
+
+nplot_access <- sf_ceo_ph2 |> filter(!is.na(ph2_pos) & lu_access2 == "Forest-access") |> nrow()
+nplot_noacc  <- sf_ceo_ph2 |> filter(!is.na(ph2_pos) & lu_access2 == "Forest-no access") |> nrow()
+
+```
+
+After the selection if done, the NFI Phase 2 sampling size for Kalimantan is ```r nplot_access``` and the number of selected forest plot that are not accessible is ```r nplot_noacc```. The following figure shows the distribution of accessible and non-accessible plots.
+
+
+```{r, Location of accessible and non-accessible forest plot selected to get the target number of accessible plots.}
+
+sf_ph2 <- sf_ceo_ph2 |> 
+  filter(!is.na(ph2_no))
+
+ceo_tof_id <- sf_ph2 |>
+  filter(lu_access == "TOF-access") |>
+  pull(plotid)
+
+if (length(ceo_tof_id) <= 70){
+  tof_sample <- ceo_tof_id
+} else {
+  set.seed(seed_num)
+  tof_sample <- sample(ceo_tof_id, 70)
+}
+
+sf_ph2 |>
+  filter(lu_cat2 == "Forest" | plotid %in% tof_sample) |>
+  arrange(hilbert_dist) |>
+  ggplot() +
+  geom_sf(data = sf_strata, fill = "grey90", color = NA) + 
+  geom_path(data = sf_ceo_ph2, aes(x = lon, y = lat), color = "grey80") +
+  geom_sf(aes(color = lu_access)) +
+  scale_color_manual(values = c("darkgreen", "darkred", "yellowgreen")) +
+  labs(color = "") +
+  theme_void()
+
+# sf_ph2 |>
+#   filter(!is.na(ph2_no), lu_cat2 == "Forest") |>
+#   arrange(hilbert_dist) |>
+#   ggplot() +
+#   geom_sf(data = sf_strata, fill = "grey90", color = NA) + 
+#   geom_path(data = sf_ceo_ph2, aes(x = lon, y = lat), color = "grey80") +
+#   geom_sf(aes(color = lu_access), size = 0.8) +
+#   scale_color_manual(values = c("darkgreen", "darkred", "grey80", "yellowgreen", "lightpink")) +
+#   labs(color = "") +
+#   theme_void()
+```
+
+\  
+
+### Summary statistics of NFI Phase 2 plots following option 2
+
+```{r, include=FALSE, eval=FALSE}
+
+check_files <- list.files("results/option2", pattern = "with_ph2")
+
+if (length(check_files) == 0) source("R/method-phase2v2-all.R", local = TRUE)
+
+```
+
+After running the algorithm for all island groups here are a few summary statistics:
+
+- Number of selected plots in accessible forest (to be measured), inaccessible forest (to be estimated by other means) and TOF. 
+
+```{r}
+path_out3 <- list.files("results/option2", pattern =  "with_ph2", full.names = T)
+out3 <- map(path_out3, read_csv, show_col_types = FALSE) |> 
+  list_rbind() |>
+  filter(ph2_selected != "Not-selected-ph2") |>
+  filter(lu_access2 %in% c("Forest-access", "Forest-no access", "TOF-access")) |>
+  group_by(pl_island, lu_access2) |>
+  summarise(count = n()) |>
+  pivot_wider(names_from = "lu_access2", values_from = "count")
+
+knitr::kable(
+  out3,
+  col.names = c(" ", names(out3)[-1]))
+
+```
+
+
+- Number of plots per land use subcategory based on NFI Phase 1 visual interpretation.
+
+```{r}
+
+path_out1 <- list.files("results/option2", pattern =  "subcat", full.names = T)
+out1 <- map(path_out1, function(x){
+  out  <- read_csv(x, show_col_types = FALSE)
+  name <- x |> str_remove(".*/") |> str_remove("-.*")
+  out  <- out |> mutate(island = name)
+}) |> 
+  list_rbind() |>
+  pivot_wider(names_from = "island", values_from = "count", values_fill = 0)
+
+knitr::kable(
+  out1,
+  col.names =  c(" ", names(out1)[-1])
+  )
+
+```
+
+- Motorized time to reach the accessible forest plots following option 2.
+
+```{r}
+
+path_out2 <- list.files("results/option2", pattern =  "friction", full.names = T)
+out2 <- map(path_out2, function(x){
+  
+  out  <- read_csv(x, show_col_types = FALSE)
+  name <- x |> str_remove(".*/") |> str_remove("-.*")
+  out  <- out |> mutate(island = name)
+}) |> 
+  list_rbind() |>
+  arrange(friction_access) |>
+  pivot_wider(names_from = "friction_access", values_from = "count")
+
+knitr::kable(
+  out2
+  )
+
+```
+
+\  
+
+## NFI Phase 2 samples for dryland and swamp forest based on option 3b
+
+In this approach, the sampling proportion is based on a pool of NFI Phase 1 samples that are at less than 10 hours motorized time to healthcare as a proxy for accessibility. The option provides a greater number of around 4000 samples to choose from and to ensure enough plots are available for the Phase2, an additional 15% increase in the target as been added as well. 
+
+
+```{r}
+
+tt <- ceo_access |>
+  filter(lu_access3b %in% c("Forest-access-3h", "Forest-access-10h")) |>
+  summarise(n_access = n(), .by = "pl_island")
+
+tt2 <- sfc_factor |>
+  mutate(n_plot_adj = ceiling(n_plot_init * (1 + phase1_error) * 1.15)) |>
+  select(island_name, n_plot_init, n_plot_adj) |>
+  left_join(tt, by = c("island_name" = "pl_island")) |>
+  mutate(samprop = round(n_plot_adj / n_access, 2))
+  
+knitr::kable(
+  tt2, 
+  col.names = c(" ", "Nplot initial", "Nplot adjusted", "Naccess op.3b", "sampling proportion op.3b"),
+  caption = "Recap number of target plots with the 15% increase compared to the inital target."
+  )  
+
+```
+
+
+
+The next figure presents the distribution of plot accessible in less than 3h, less than 10h and not accessible, with the space filling curve on top and the selected samples for phase 2 in black.
+
+```{r}
+sfc_factor <- tibble(
+  island_name   = c("BaliNusa", "Jawa", "Kalimantan", "Maluku", "Papua", "Sulawesi", "Sumatera"),
+  island_code   = c("BL", "JV", "KL", "ML", "PP", "SL", "SM"),
+  phase1_error  = head(round(disa_lucat_stat$disagree / disa_lucat_stat$total, 2), -1),
+  sfc_adjust    = rep(1.15, 7),
+  n_plot_init   = c(119, 148, 413, 219, 257, 486, 386),
+  n_plot_target = ceiling(n_plot_init * (1 + phase1_error) * sfc_adjust),
+  seed          = c(67, 93, 76, 16, 59, 89, 19)
+)
+
+x = "Kalimantan"
+
+island_code <- sfc_factor |> filter(island_name == x) |> pull(island_code)
+seed_num    <- sfc_factor |> filter(island_name == x) |> pull(seed)
+sf_strata   <- sf_islands[[x]]
+ceo_sub     <- ceo_access |> filter(pl_island == x) |> mutate(lu_access = lu_access3b) |> arrange(hilbert_dist)
+
+sf_ceo_sub <- ceo_sub |>
+  mutate(lon_copy = lon, lat_copy = lat) |>
+  st_as_sf(coords = c("lon_copy", "lat_copy"), crs = 4326)
+
+sf_dggrid_sub <- sf_dggrid |> 
+  st_join(sf_ceo_sub) |> 
+  filter(!is.na(plotid)) |>
+  arrange(hilbert_dist)
+
+## SFC inputs
+n_pool      <- nrow(ceo_sub)
+n_pool_sub  <- ceo_sub |> filter(lu_access %in% c("Forest-access-3h", "Forest-access-10h")) |> nrow()
+n_plot_init <- sfc_factor |> filter(island_name == x) |> pull(n_plot_init)
+n_plot_U    <- sfc_factor |> filter(island_name == x) |> pull(phase1_error)
+sfc_adjust  <- sfc_factor |> filter(island_name == x) |> pull(sfc_adjust)
+
+n_plot  <- ceiling(n_plot_init * (1 + n_plot_U) * sfc_adjust)
+samprop <-  round(n_plot / n_pool_sub, 2)
+
+## Chose seed at random
+set.seed(seed_num)
+if (length(ceiling(1/samprop) < 5)){
+  start_point <- sample(2:5, 1)
+} else {
+  start_point <- sample(2:ceiling(1/samprop), 1)
+}
+
+## Initialize for loop
+pool_dist <- sort(ceo_sub$hilbert_dist)
+
+ph2_dist <- vector(length = n_pool) ## Hilbert dist of the chosen plots
+ph2_no   <- vector(length = n_pool) ## Rank of the chosen plots, 1, 2, 3, ...
+ph2_pos  <- vector(length = n_pool) ## Position of the chosen plot, ie value in 1:n_pool
+
+j <- 1
+for (i in start_point:n_pool) {
+  
+  if (ceiling((i - start_point + 1) * samprop) == j) {
+    ph2_dist[i] <- pool_dist[i]
+    ph2_pos[i]  <- i
+    ph2_no[i]   <- j
+    j <- j + 1
+    # } else {
+    #   ph2_dist[i] <- 0
+    #   ph2_pos[i]  <- 0
+    #   ph2_no[i]   <- 0
+  }
+} ## End for
+
+## group SFC results
+ph2_sfc <- tibble(hilbert_dist = ph2_dist, ph2_pos = ph2_pos, ph2_no = ph2_no) |>
+  filter(hilbert_dist > 0)
+
+sf_ceo_ph2 <- sf_ceo_sub |> 
+  left_join(ph2_sfc, by = "hilbert_dist")
+
+## random selection of TOF
+ceo_tof_id <- sf_ceo_ph2 |> 
+  filter(!is.na(ph2_no)) |>
+  filter(lu_access %in% c("TOF-access-3h", "TOF-access-10h")) |>
+  pull(plotid)
+
+if (length(ceo_tof_id) <= 70){
+  tof_sample <- ceo_tof_id
+} else {
+  set.seed(seed_num)
+  tof_sample <- sample(ceo_tof_id, 70)
+}
+
+sf_ph2 <- sf_ceo_ph2 |> 
+  filter(!is.na(ph2_no)) |>
+  filter(lu_cat2 == "Forest" | plotid %in% tof_sample)
+
+sf_dggrid_ph2 <- sf_dggrid |>
+  st_join(sf_ph2) |>
+  filter(!is.na(plotid))
+
+gr <- sf_ph2 |>
+  arrange(hilbert_dist) |>
+  ggplot() +
+  geom_sf(data = sf_dggrid_sub, aes(fill = lu_access), color = NA) +
+  geom_path(data = sf_ceo_ph2, aes(x = lon, y = lat), color = "grey60") +
+  geom_sf(data = sf_ph2, size = 1.2, shape = 8) +
+  scale_fill_manual(values = c("darkgreen", "yellowgreen", "darkred", "grey90", "orange", "khaki2", "lightpink")) +
+  labs(fill = "") +
+  theme_void()
+print(gr)
+
+```
+
+The total number of samples selected for phase 2 is as follows:
+
+```{r}
+
+path_out3 <- list.files("results/option3b", pattern =  "with_ph2", full.names = T)
+out3 <- map(path_out3, read_csv, show_col_types = FALSE) |> 
+  list_rbind() |>
+  filter(ph2_selected != "Not-selected-ph2") |>
+  filter(lu_access3b %in% c("Forest-access-3h", "Forest-access-10h", "Forest-no access", "TOF-access-3h", "TOF-access-10h")) |>
+  group_by(pl_island, lu_access3b) |>
+  summarise(count = n()) |>
+  pivot_wider(names_from = "lu_access3b", values_from = "count", values_fill = 0) |>
+  mutate(
+    `Forest-access-total` = `Forest-access-10h` + `Forest-access-3h`,
+    `TOF-access-total` = `TOF-access-3h` + `TOF-access-10h`
+    )
+
+knitr::kable(out3) 
+
+out_total <- sum(out3$`Forest-access-total`,out3$`TOF-access-total`)
+
+```
+
+
+And the resulting total number of plots selected for the NFI Phase 2 ```r  out_total``` and assuming 60 plots per island group for mangrove forests, the overall total is ```{r} out_total + 60*7```.
+
+
+
+
+
+
+
 

@@ -92,7 +92,8 @@ walk(path_dat, function(x){
   plot_seqnum <- vector(length = n_pool)
   sfc_cluster <- vector(length = n_pool) 
   
-  
+  i  = 2
+  sampling_proportion = 0.1
   j <- start_point
   for (i in 1:n_pool) {
     
