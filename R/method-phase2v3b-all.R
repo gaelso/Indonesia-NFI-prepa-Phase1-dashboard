@@ -6,7 +6,7 @@ library(tidyverse)
 theme_set(theme_bw())
 
 dir.create("results/option3b", showWarnings = F)
-
+  
 ceo <- read_csv("data/ceo_withfriction_hilbert.csv")
 sf_ceo <- ceo |> 
   mutate(lon_copy = lon, lat_copy = lat) |>
@@ -21,8 +21,9 @@ load("data-raw/sf_islands.Rdata")
 sfc_factor <- tibble(
   island_name   = c("BaliNusa", "Jawa", "Kalimantan", "Maluku", "Papua", "Sulawesi", "Sumatera"),
   island_code   = c("BL", "JV", "KL", "ML", "PP", "SL", "SM"),
+  phase1_res    = c(12, 12, 11, 12, 11, 12, 11),
   phase1_error  = head(round(disa_lucat_stat$disagree / disa_lucat_stat$total, 2), -1),
-  sfc_adjust    = rep(1.15, 7),
+  sfc_adjust    = rep(1.15, 7), ## TO REACH ~3500 plots, added 15% to each strata => res 3459 with MG adn TOF
   n_plot_init   = c(119, 148, 413, 219, 257, 486, 386),
   n_plot_target = ceiling(n_plot_init * (1 + phase1_error) * sfc_adjust),
   seed          = c(67, 93, 76, 16, 59, 89, 19)
@@ -88,6 +89,7 @@ sf_dggrid_access <- sf_dggrid |> st_join(sf_ceo_access)
 ##
 ## CHECK LAND COVER
 ##
+
 tt <- ceo_access |> filter(lu_access3b %in% c("Forest-access-3h", "Forest-access-10h"))
 table(tt$lu_sub, tt$pl_island)
 
@@ -358,26 +360,61 @@ out4 <- map(path_out3, read_csv, show_col_types = FALSE) |>
 out4
 write_csv(out4, "results/option3b/zz-stat-nplot-ph1.csv")
 
-
-
-
 ## Check
 sum(out3$`Forest-access-total`,out3$`TOF-access-total`, 60*7)
 
+##
+## Systematic DGGRID for Phase 2
+##
 
-path_out4 <- list.files("results/option3b", pattern =  "with_ph2", full.names = T)
-out3 <- map(path_out3, read_csv, show_col_types = FALSE) |> 
-  list_rbind() |>
-  filter(ph2_selected != "Not-selected-ph2") |>
-  filter(lu_access3b %in% c("Forest-access-3h", "Forest-access-10h", "Forest-no access", "TOF-access-3h", "TOF-access-10h")) |>
-  group_by(pl_island, lu_access3b) |>
-  summarise(count = n()) |>
-  pivot_wider(names_from = "lu_access3b", values_from = "count", values_fill = 0) |>
-  mutate(
-    `Forest-access-total` = `Forest-access-10h` + `Forest-access-3h`,
-    `TOF-access-total` = `TOF-access-3h` + `TOF-access-10h`
-  )
-out3  
-write_csv(out3, "results/option3b/zz-stat-nplot.csv")
+dir.create("results/systematic_minus1", showWarnings = F)
 
+## Find res17 seqnum for each location, recreate correct centroid, get to 
+walk(sfc_factor$island_name, function(x){
+  
+  res <- sfc_factor |> filter(island_name == x) |> pull(phase1_res)
+  
+  path_grid2 <- list.files("data-raw/DGGRID-raw", pattern = paste0(x, ".*res", res-1), full.names = T)
+  
+  sf_grid2 <- st_read(path_grid2, quiet = T)
+  
+  sf_centroid <- sf_grid2 |> 
+    st_centroid() |>
+    rename(seqnum_ph2 = seqnum)
+  
+  sf_grid2_ph2 <- sf_dggrid_access |> 
+    filter(pl_island == x) |>
+    rename(seqnum_ph1 = seqnum) |>
+    st_join(sf_centroid) |>
+    filter(!is.na(seqnum_ph2))
+  
+  ggplot() +
+    geom_sf(data = sf_grid2_ph2) +
+    geom_sf(data = sf_grid2, fill = NA)
+  
+  sf_dggrid_ph2 <- sf_grid2 |>
+    st_join(sf_grid2_ph2)
+  
+  ggplot() +
+    geom_sf(data = sf_dggrid_ph2, aes(fill = lu_access3b)) +
+    scale_fill_manual(values = c("darkgreen", "yellowgreen", "darkred", "grey90", "orange", "khaki2", "lightpink"))
+  
+  table(sf_dggrid_ph2$lu_access3b)
+  
+  sf_dggrid_ph2 |>
+    filter(lu_access3b %in% c("Forest-access-10h", "Forest-access-3h")) |>
+    nrow()
+  
+  sf_dggrid_ph2 |> write_csv(paste0("results/systematic_minus1/", x, "_all.csv"))
 
+  sf_dggrid_ph2 |> 
+    filter(lu_access3b %in% c("Forest-access-10h", "Forest-access-3h", "TOF-access-10h", "TOF-access-3h")) |>
+    write_csv(paste0("results/systematic_minus1/", x, "_ph2.csv"))
+})
+
+## STATS 
+path_out1 <- list.files("results/systematic_minus1", pattern = "_ph2.csv", full.names = T)
+out1 <- map(path_out1, read_csv, show_col_types = F) |> 
+  list_rbind()
+
+table(out1$pl_island, out1$lu_cat2)
