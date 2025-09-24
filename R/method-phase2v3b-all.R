@@ -86,6 +86,8 @@ sf_ceo_access <- ceo_access |>
 
 sf_dggrid_access <- sf_dggrid |> st_join(sf_ceo_access)
 
+st_write(sf_dggrid_access, "results/sf_ceo_grid.gpkg")
+
 ##
 ## CHECK LAND COVER
 ##
@@ -413,8 +415,9 @@ walk(sfc_factor$island_name, function(x){
 })
 
 ## STATS 
-path_out1 <- list.files("results/systematic_minus1", pattern = "_ph2.csv", full.names = T)
+path_out1 <- list.files("results/systematic_minus1", pattern = "all.csv", full.names = T)
 out1 <- map(path_out1, read_csv, show_col_types = F) |> 
   list_rbind()
 
 table(out1$pl_island, out1$lu_cat2)
+table(out1$pl_island, out1$lu_access3b)
